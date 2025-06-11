@@ -1,41 +1,49 @@
 const fs = require("fs").promises;
 const path = require("path");
 const axios = require("axios");
-const  BACKEND_URL  ="http://localhost:3000"; // Adjust this URL as needed
 
+const BACKEND_URL = "http://localhost:3000"; // Adjust if needed
 const sessionPath = path.resolve(".vcgit", "session.json");
-const configPath = path.resolve(".vcgit", "config.json");
+const configPath = path.resolve(".vcgit", "upstream.json");
+
 async function getSession() {
   try {
     const data = await fs.readFile(sessionPath, "utf-8");
     return JSON.parse(data);
   } catch (err) {
-    throw new Error("You must login first. Session not found.");
+    throw new Error("❌ You must login first. Session not found.");
   }
 }
+
 async function setupstream(repoName) {
   try {
     const session = await getSession();
     const { token, userId } = session;
 
-    const response = await axios.get(`${BACKEND_URL}/repo/${repoName}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    // Get all repositories owned by the user
+    const response = await axios.get(`${BACKEND_URL}/repo/user/${userId}`);
 
-    const repo = response.data;
+    // const repos = response.data;
+
+     console.log("DEBUG repos response:", response.data);
+
+   // Extract repositories correctly from the response
+    const repos = response.data.repositories;
+
+    if (!Array.isArray(repos)) {
+      throw new Error("Invalid response: Expected an array of repositories.");
+    }
+
+
+    // Find the repo by name
+    const repo = repos.find((r) => r.name === repoName);
 
     if (!repo) {
-      console.error("❌ Repository not found.");
+      console.error("❌ Repository not found or you are not the owner.");
       return;
     }
 
-    if (repo.owner !== userId) {
-      console.error("⛔ You are not the owner of this repository. Cannot set upstream.");
-      return;
-    }
-
+    // Save upstream configuration
     const config = {
       upstream: {
         name: repo.name,
@@ -50,4 +58,5 @@ async function setupstream(repoName) {
     console.error("⚠️ Error setting upstream:", err.response?.data?.message || err.message);
   }
 }
+
 module.exports = { setupstream };
