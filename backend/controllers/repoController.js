@@ -55,7 +55,7 @@ async function connectClient() {
 
 
 async function createRepository(req, res) {
-  const { owner, name, issues = [], content = [], description, visibility } = req.body;
+  const { owner, name, issues = [],commits=[], content = [], description, visibility } = req.body;
 
   try {
     if (!name) {
@@ -70,17 +70,24 @@ async function createRepository(req, res) {
     const db = client.db("cluster0");
     const repoCollection = db.collection("repositories");
     const userCollection = db.collection("users");
+    const existingRepo = await repoCollection.findOne({ name, owner: new ObjectId(owner) });
+    if (existingRepo) {
+      return res.status(400).json({ error: "Repository already exists!" });
+    }
 
-    // 1. Create the new repository
     const newRepo = {
       owner: new ObjectId(owner),
       name,
-      issues: issues.map(id => new ObjectId(id)),
+      issues: issues.map(id => new ObjectId(id)),       // Link to Issues collection
+      commits: commits.map(id => new ObjectId(id)),     // Link to Commits collection
       content,
       description,
       visibility,
       createdAt: new Date(),
     };
+
+
+    
 
     const result = await repoCollection.insertOne(newRepo);
     const newRepoId = result.insertedId;
